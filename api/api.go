@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"go-postgresql-rest-api/models"
 	"net/http"
+	"strconv"
 
 	"go-postgresql-rest-api/helpers"
 	"strings"
@@ -17,9 +18,14 @@ type Data struct {
 	Errors  []string        `json:"errors"`
 }
 
+type StatusResume struct {
+	Status   string `json:"status"`
+	Elements string `json:"elements"`
+	Success  bool   `json:"success"`
+}
+
 func GetAlerts(w http.ResponseWriter, req *http.Request) {
 	var Status []models.Status = models.GetAll()
-
 	var data = Data{true, Status, make([]string, 0)}
 	json, _ := json.Marshal(data)
 
@@ -37,7 +43,7 @@ func GetAlert(w http.ResponseWriter, req *http.Request) {
 	var status models.Status
 	var success bool
 	status, success = models.Get(id)
-	if success != true {
+	if !success {
 		data.Success = false
 		data.Errors = append(data.Errors, "not found")
 
@@ -58,16 +64,69 @@ func GetAlert(w http.ResponseWriter, req *http.Request) {
 	w.Write(json)
 }
 
+func GetAlertStatus(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	var data Data
+
+	var status models.Status
+	var success bool
+	status, success = models.Get(id)
+	if !success {
+		data.Success = false
+		data.Errors = append(data.Errors, "not found")
+
+		json, _ := json.Marshal(data)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(json)
+		return
+	}
+
+	errorStatus := strconv.Itoa(1)
+	var dataStatus StatusResume
+	dataStatus.Success = true
+	if status.Ds_status == errorStatus || status.Faust_status == errorStatus || helpers.IsTimeInInterval(status.Timestamp, 10) {
+		dataStatus.Status = "Error"
+	} else {
+		dataStatus.Status = "Ok"
+	}
+	if status.Ds_status == errorStatus {
+		dataStatus.Elements = "Ds"
+	}
+	if status.Faust_status == errorStatus {
+		if dataStatus.Elements != "" {
+			dataStatus.Elements += ", faust"
+		} else {
+			dataStatus.Elements = "faust"
+		}
+	}
+	if helpers.IsTimeInInterval(status.Timestamp, 15) {
+		if dataStatus.Elements != "" {
+			dataStatus.Elements += ", appliances without connection (diff > 15min)"
+		} else {
+			dataStatus.Elements = "appliances without connection (diff > 15min)"
+		}
+	}
+
+	json, _ := json.Marshal(dataStatus)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(json)
+}
+
 func UpdateAlert(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	cc_id := vars["id"]
 
 	bodyStatus, success := helpers.DecodeBody(req)
-	if success != true {
+	if !success {
 		http.Error(w, "could not decode body", http.StatusBadRequest)
 		return
 	}
-
 	var data Data = Data{Errors: make([]string, 0)}
 	bodyStatus.Ds_status = strings.TrimSpace(bodyStatus.Ds_status)
 	bodyStatus.Faust_status = strings.TrimSpace(bodyStatus.Faust_status)
@@ -82,11 +141,10 @@ func UpdateAlert(w http.ResponseWriter, req *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write(json)
-		return
 	}
 
 	status, success := models.Update(cc_id, bodyStatus.Ds_status, bodyStatus.Faust_status, bodyStatus.Timestamp)
-	if success != true {
+	if !success {
 		data.Errors = append(data.Errors, "could not update alert")
 	}
 
@@ -98,7 +156,6 @@ func UpdateAlert(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	w.Write(json)
-	return
 }
 
 /*
