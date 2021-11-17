@@ -15,6 +15,7 @@ func main() {
 	apiRouter := router.PathPrefix("/omia/").Subrouter()
 	apiRouter.HandleFunc("/alerts", api.GetAlerts).Methods("GET")
 	apiRouter.HandleFunc("/alerts/{id}", api.GetAlert).Methods("GET")
+	apiRouter.HandleFunc("/status/{id}", api.GetAlertStatus).Methods("GET")
 	apiRouter.HandleFunc("/alerts/{id}", api.UpdateAlert).Methods("PUT")
 
 	/* 	apiRouter.HandleFunc("/alerts/{id}", api.DeleteAlert).Methods("DELETE")
