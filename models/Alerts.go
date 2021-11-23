@@ -15,6 +15,8 @@ type Status struct {
 
 func Get(id string) (Status, bool) {
 	db := database.GetConnection()
+	defer db.Close()
+
 	row := db.QueryRow("SELECT * FROM server_status WHERE cc_name = $1", id)
 
 	var cc_name sql.NullString
@@ -32,6 +34,8 @@ func Get(id string) (Status, bool) {
 
 func GetAll() []Status {
 	db := database.GetConnection()
+	defer db.Close()
+
 	rows, err := db.Query("SELECT * FROM server_status")
 	if err != nil {
 		log.Fatal(err)
@@ -71,6 +75,7 @@ func GetAll() []Status {
 
 func Update(id string, ds_status string, faust_status string, timestamp string) (Status, bool) {
 	db := database.GetConnection()
+	defer db.Close()
 
 	var cc_id sql.NullString
 	db.QueryRow("UPDATE server_status SET ds_status = $1, faust_status = $2, timestamp = $3 WHERE cc_name = $4 RETURNING cc_name", ds_status, faust_status, timestamp, id).Scan(&cc_id)
