@@ -29,7 +29,7 @@ func IsValidEntryTimestamp(entry string) bool {
 }
 
 func IsTimeInInterval(entry string, interval int) bool {
-	loc, _ := time.LoadLocation("America/Santiago")
+	loc, _ := time.LoadLocation("America/Guayaquil")
 	desc := strings.TrimSpace(entry)
 	tMsg, err := time.ParseInLocation("2006-01-02 15:04:05.999", desc, loc)
 	tNow := time.Now()
