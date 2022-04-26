@@ -13,9 +13,13 @@ func main() {
 
 	router := mux.NewRouter().StrictSlash(true)
 	apiRouter := router.PathPrefix("/omia/").Subrouter()
-	apiRouter.HandleFunc("/alerts", api.GetAlerts).Methods("GET")
-	apiRouter.HandleFunc("/alerts/{id}", api.GetAlert).Methods("GET")
-	apiRouter.HandleFunc("/status/{id}", api.GetAlertStatus).Methods("GET")
+
+	apiRouter.HandleFunc("/status", api.GetAlerts).Methods("GET")
+	apiRouter.HandleFunc("/status/{id}", api.GetAlertById).Methods("GET")
+
+	apiRouter.HandleFunc("/check/{id}", api.GetAlertStatusResume).Methods("GET")
+	apiRouter.HandleFunc("/check_details/{id}", api.GetAlertStatusDetails).Methods("GET")
+
 	apiRouter.HandleFunc("/alerts/{id}", api.UpdateAlert).Methods("PUT")
 
 	/* 	apiRouter.HandleFunc("/alerts/{id}", api.DeleteAlert).Methods("DELETE")
