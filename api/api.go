@@ -34,7 +34,7 @@ func GetAlerts(w http.ResponseWriter, req *http.Request) {
 	w.Write(json)
 }
 
-func GetAlert(w http.ResponseWriter, req *http.Request) {
+func GetAlertById(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -64,7 +64,7 @@ func GetAlert(w http.ResponseWriter, req *http.Request) {
 	w.Write(json)
 }
 
-func GetAlertStatus(w http.ResponseWriter, req *http.Request) {
+func GetAlertStatusDetails(w http.ResponseWriter, req *http.Request) {
 	vars := mux.Vars(req)
 	id := vars["id"]
 
@@ -88,27 +88,89 @@ func GetAlertStatus(w http.ResponseWriter, req *http.Request) {
 	errorStatus := strconv.Itoa(1)
 	var dataStatus StatusResume
 	dataStatus.Success = true
-	if status.Ds_status == errorStatus || status.Faust_status == errorStatus || helpers.IsTimeInInterval(status.Timestamp, 10) {
+	dataStatus.Elements = ""
+
+	if status.Ds_status_flujo == errorStatus || status.Ds_status_aforo == errorStatus || status.Faust_status_flujo == errorStatus || status.Faust_status_aforo == errorStatus || helpers.IsTimeInInterval(status.Timestamp, 15) {
 		dataStatus.Status = "Error"
+
+		if status.Ds_status_flujo == errorStatus {
+			dataStatus.Elements += "Ds_FLUJO "
+		}
+
+		if status.Ds_status_aforo == errorStatus {
+			dataStatus.Elements += "Ds_AFORO "
+		}
+
+		if status.Faust_status_flujo == errorStatus {
+			dataStatus.Elements += "faust_FLUJO "
+		}
+
+		if status.Faust_status_aforo == errorStatus {
+			dataStatus.Elements += "faust_AFORO "
+		}
+		if helpers.IsTimeInInterval(status.Timestamp, 15) {
+			dataStatus.Elements += "appliances without connection (diff > 15min)"
+		}
+
 	} else {
 		dataStatus.Status = "Ok"
 	}
-	if status.Ds_status == errorStatus {
-		dataStatus.Elements = "Ds"
+
+	json, _ := json.Marshal(dataStatus)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(json)
+}
+
+func GetAlertStatusResume(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	id := vars["id"]
+
+	var data Data
+
+	var status models.Status
+	var success bool
+	status, success = models.Get(id)
+	if !success {
+		data.Success = false
+		data.Errors = append(data.Errors, "not found")
+
+		json, _ := json.Marshal(data)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write(json)
+		return
 	}
-	if status.Faust_status == errorStatus {
-		if dataStatus.Elements != "" {
-			dataStatus.Elements += ", faust"
-		} else {
-			dataStatus.Elements = "faust"
+
+	errorStatus := strconv.Itoa(1)
+	var dataStatus StatusResume
+	dataStatus.Success = true
+	if status.Ds_status_flujo == errorStatus || status.Ds_status_aforo == errorStatus || status.Faust_status_flujo == errorStatus || status.Faust_status_aforo == errorStatus || helpers.IsTimeInInterval(status.Timestamp, 15) {
+		dataStatus.Status = "Error"
+
+		if status.Ds_status_flujo == errorStatus || status.Ds_status_aforo == errorStatus {
+			dataStatus.Elements = "Ds"
 		}
-	}
-	if helpers.IsTimeInInterval(status.Timestamp, 15) {
-		if dataStatus.Elements != "" {
-			dataStatus.Elements += ", appliances without connection (diff > 15min)"
-		} else {
-			dataStatus.Elements = "appliances without connection (diff > 15min)"
+
+		if status.Faust_status_flujo == errorStatus || status.Faust_status_aforo == errorStatus {
+			if dataStatus.Elements != "" {
+				dataStatus.Elements += ", faust"
+			} else {
+				dataStatus.Elements = "faust"
+			}
 		}
+		if helpers.IsTimeInInterval(status.Timestamp, 15) {
+			if dataStatus.Elements != "" {
+				dataStatus.Elements += ", appliances without connection (diff > 15min)"
+			} else {
+				dataStatus.Elements = "appliances without connection (diff > 15min)"
+			}
+		}
+
+	} else {
+		dataStatus.Status = "Ok"
 	}
 
 	json, _ := json.Marshal(dataStatus)
@@ -128,11 +190,13 @@ func UpdateAlert(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	var data Data = Data{Errors: make([]string, 0)}
-	bodyStatus.Ds_status = strings.TrimSpace(bodyStatus.Ds_status)
-	bodyStatus.Faust_status = strings.TrimSpace(bodyStatus.Faust_status)
+	bodyStatus.Ds_status_flujo = strings.TrimSpace(bodyStatus.Ds_status_flujo)
+	bodyStatus.Ds_status_aforo = strings.TrimSpace(bodyStatus.Ds_status_aforo)
+	bodyStatus.Faust_status_flujo = strings.TrimSpace(bodyStatus.Faust_status_flujo)
+	bodyStatus.Faust_status_aforo = strings.TrimSpace(bodyStatus.Faust_status_aforo)
 	bodyStatus.Timestamp = strings.TrimSpace(bodyStatus.Timestamp)
 
-	if !(helpers.IsValidEntry(bodyStatus.Ds_status) && helpers.IsValidEntry(bodyStatus.Faust_status) && helpers.IsValidEntryTimestamp(bodyStatus.Timestamp)) {
+	if !(helpers.IsValidEntry(bodyStatus.Ds_status_flujo) && helpers.IsValidEntry(bodyStatus.Ds_status_aforo) && helpers.IsValidEntry(bodyStatus.Faust_status_flujo) && helpers.IsValidEntry(bodyStatus.Faust_status_aforo) && helpers.IsValidEntryTimestamp(bodyStatus.Timestamp)) {
 		data.Success = false
 		data.Errors = append(data.Errors, "invalid payload")
 
@@ -143,7 +207,7 @@ func UpdateAlert(w http.ResponseWriter, req *http.Request) {
 		w.Write(json)
 	}
 
-	status, success := models.Update(cc_id, bodyStatus.Ds_status, bodyStatus.Faust_status, bodyStatus.Timestamp)
+	status, success := models.Update(cc_id, bodyStatus.Ds_status_flujo, bodyStatus.Ds_status_aforo, bodyStatus.Faust_status_flujo, bodyStatus.Faust_status_aforo, bodyStatus.Timestamp)
 	if !success {
 		data.Errors = append(data.Errors, "could not update alert")
 	}
@@ -157,63 +221,3 @@ func UpdateAlert(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Write(json)
 }
-
-/*
-
-func DeleteTodo(w http.ResponseWriter, req *http.Request) {
-	vars := mux.Vars(req)
-	id := vars["id"]
-
-	var data Data = Data{Errors: make([]string, 0)}
-
-	todo, success := models.Delete(id)
-	if success != true {
-		data.Errors = append(data.Errors, "could not delete todo")
-	}
-
-	data.Success = success
-	data.Data = append(data.Data, todo)
-
-	json, _ := json.Marshal(data)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(json)
-}
-
-func CreateTodo(w http.ResponseWriter, req *http.Request) {
-	bodyTodo, success := helpers.DecodeBody(req)
-	if success != true {
-		http.Error(w, "could not decode body", http.StatusBadRequest)
-		return
-	}
-
-	var data Data = Data{Errors: make([]string, 0)}
-	bodyTodo.Description = strings.TrimSpace(bodyTodo.Description)
-	if !helpers.IsValidDescription(bodyTodo.Description) {
-		data.Success = false
-		data.Errors = append(data.Errors, "invalid description")
-
-		json, _ := json.Marshal(data)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write(json)
-		return
-	}
-
-	todo, success := models.Insert(bodyTodo.Description)
-	if success != true {
-		data.Errors = append(data.Errors, "could not create todo")
-	}
-
-	data.Success = success
-	data.Data = append(data.Data, todo)
-
-	json, _ := json.Marshal(data)
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(json)
-	return
-} */
